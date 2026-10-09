@@ -29,11 +29,13 @@ async function seedDatabase() {
 
     const users = await Promise.all(
       userRecords.map(async (record) => {
-        const user = await User.findOneAndUpdate(
-          { username: record.username },
-          { $set: record },
-          { new: true, upsert: true },
-        );
+        let user = await User.findOne({ username: record.username });
+        if (user) {
+          user.set(record);
+          await user.save();
+        } else {
+          user = await User.create(record);
+        }
         if (!user) throw new Error(`Unable to seed user ${record.username}`);
         return user;
       }),
@@ -64,20 +66,23 @@ async function seedDatabase() {
 
     const teams = await Promise.all(
       teamRecords.map(async (record) => {
-        const team = await Team.findOneAndUpdate(
-          { name: record.name },
-          { $set: record },
-          { new: true, upsert: true },
-        );
+        let team = await Team.findOne({ name: record.name });
+        if (team) {
+          team.set(record);
+          await team.save();
+        } else {
+          team = await Team.create(record);
+        }
         if (!team) throw new Error(`Unable to seed team ${record.name}`);
         return team;
       }),
     );
 
     await Promise.all(
-      users.map((user, index) =>
-        User.updateOne({ _id: user._id }, { $set: { team: teams[Math.floor(index / 2)]._id } }),
-      ),
+      users.map(async (user, index) => {
+        user.team = teams[Math.floor(index / 2)]._id;
+        await user.save();
+      }),
     );
 
     const createActivityRecord = (
@@ -124,13 +129,18 @@ async function seedDatabase() {
     ];
 
     await Promise.all(
-      activityRecords.map(({ user, type, occurredAt, ...record }) =>
-        Activity.findOneAndUpdate(
-          { user, type, occurredAt },
-          { $set: { user, type, occurredAt, ...record } },
-          { new: true, upsert: true },
-        ),
-      ),
+      activityRecords.map(async ({ user, type, occurredAt, ...record }) => {
+        const filter = { user, type, occurredAt };
+        const values = { user, type, occurredAt, ...record };
+        let activity = await Activity.findOne(filter);
+        if (activity) {
+          activity.set(values);
+          await activity.save();
+        } else {
+          activity = await Activity.create(values);
+        }
+        return activity;
+      }),
     );
 
     const weekStart = new Date('2026-10-05T00:00:00Z');
@@ -155,13 +165,16 @@ async function seedDatabase() {
       }));
 
     await Promise.all(
-      leaderboardRecords.map((record) =>
-        Leaderboard.findOneAndUpdate(
-          { period: record.period, user: record.user },
-          { $set: record },
-          { new: true, upsert: true },
-        ),
-      ),
+      leaderboardRecords.map(async (record) => {
+        let entry = await Leaderboard.findOne({ period: record.period, user: record.user });
+        if (entry) {
+          entry.set(record);
+          await entry.save();
+        } else {
+          entry = await Leaderboard.create(record);
+        }
+        return entry;
+      }),
     );
 
     const workoutRecords = [
@@ -217,13 +230,16 @@ async function seedDatabase() {
     ];
 
     await Promise.all(
-      workoutRecords.map((record) =>
-        Workout.findOneAndUpdate(
-          { title: record.title },
-          { $set: record },
-          { new: true, upsert: true },
-        ),
-      ),
+      workoutRecords.map(async (record) => {
+        let workout = await Workout.findOne({ title: record.title });
+        if (workout) {
+          workout.set(record);
+          await workout.save();
+        } else {
+          workout = await Workout.create(record);
+        }
+        return workout;
+      }),
     );
 
     console.log('Seeded users, teams, activities, leaderboard, and workouts');
